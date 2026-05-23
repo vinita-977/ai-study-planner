@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>AI Study Planner</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f172a;
+    color:white;
+}
+
+.dashboard{
+    display:flex;
+}
+
+/* SIDEBAR */
+.sidebar{
+    width:250px;
+    height:100vh;
+    background:#111827;
+    position:fixed;
+    padding:20px;
+}
+
+.logo{
+    color:#38bdf8;
+    text-align:center;
+    margin-bottom:30px;
+}
+
+.sidebar ul{
+    list-style:none;
+    padding:0;
+}
+
+.sidebar ul li{
+    padding:15px;
+    margin-bottom:15px;
+    background:#1e293b;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+.sidebar ul li:hover{
+    background:#334155;
+}
+
+.logout-btn{
+    display:block;
+    background:#ef4444;
+    color:white;
+    text-decoration:none;
+    text-align:center;
+    padding:12px;
+    border-radius:10px;
+    margin-top:30px;
+}
+
+/* MAIN */
+.main-content{
+    margin-left:250px;
+    width:100%;
+    padding:30px;
+}
+
+.card{
+    background:#1e293b;
+    padding:25px;
+    border-radius:20px;
+    margin-bottom:25px;
+}
+
+/* SECTIONS */
+.section{
+    display:none;
+}
+
+.active{
+    display:block;
+}
+
+/* STATS */
+.stats{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:15px;
+}
+
+.stat{
+    background:#334155;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+}
+
+/* XP BAR */
+.xp-bar{
+    width:100%;
+    height:25px;
+    background:#334155;
+    border-radius:30px;
+    overflow:hidden;
+}
+
+.xp-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,#8b5cf6,#06b6d4);
+    transition:0.5s;
+}
+
+/* TASK */
+.task{
+    background:#334155;
+    padding:15px;
+    margin-top:10px;
+    border-radius:10px;
+}
+
+/* TIMER */
+#timer{
+    font-size:60px;
+    text-align:center;
+}
+
+.timer-buttons button{
+    margin:10px;
+    padding:10px;
+    border:none;
+    border-radius:10px;
+    background:#22c55e;
+    color:white;
+    cursor:pointer;
+}
+
+/* SEARCH */
+input,select,button{
+    padding:10px;
+    margin:5px;
+    border:none;
+    border-radius:10px;
+}
+
+button{
+    background:#22c55e;
+    color:white;
+    cursor:pointer;
+}
+
+a{
+    color:#38bdf8;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="dashboard">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+
+<h1 class="logo">AI Planner</h1>
+
+<ul>
+<li onclick="showSection('dashboard-section')">📊 Dashboard</li>
+<li onclick="showSection('tasks-section')">📚 Tasks</li>
+<li onclick="showSection('calendar-section')">📅 Calendar</li>
+<li onclick="showSection('pomodoro-section')">🍅 Pomodoro</li>
+<li onclick="showSection('notification-section')">🔔 Notifications</li>
+</ul>
+
+<a class="logout-btn" href="/logout">Logout</a>
+
+</div>
+
+<!-- MAIN -->
+<div class="main-content">
+
+<h1>Welcome {{ session["username"] }} 👋</h1>
+
+<!-- DASHBOARD -->
+<div id="dashboard-section" class="section active">
+
+<div class="card">
+
+<h2>📊 Stats</h2>
+
+<div class="stats">
+
+<div class="stat">
+Total<br>{{ total_tasks }}
+</div>
+
+<div class="stat">
+Completed<br>{{ completed_tasks }}
+</div>
+
+<div class="stat">
+Pending<br>{{ pending_tasks }}
+</div>
+
+<div class="stat">
+XP<br>{{ xp }}
+</div>
+
+<div class="stat">
+Streak<br>{{ streak }}
+</div>
+
+<div class="stat">
+Level<br>{{ level }}
+</div>
+
+</div>
+
+</div>
+
+<!-- XP -->
+<div class="card">
+
+<h2>🎮 Level Progress</h2>
+
+<div class="xp-bar">
+<div class="xp-fill" id="xpFill"></div>
+</div>
+
+<p>{{ xp % 150 }}/150 XP</p>
+
+</div>
+
+<!-- AI -->
+<div class="card">
+
+<h2>🤖 AI Recommendations</h2>
+
+{% if ai_recommendations %}
+
+    {% for r in ai_recommendations %}
+
+        <div
+        style="
+        background:#334155;
+        padding:10px;
+        margin-top:10px;
+        border-radius:10px;
+        ">
+        🤖 {{ r }}
+        </div>
+
+    {% endfor %}
+
+{% else %}
+
+<p>No AI recommendations available</p>
+
+{% endif %}
+
+</div>
+
+<!-- CHART -->
+<div class="card">
+
+<h2>📈 Performance Chart</h2>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+</div>
+
+<!-- TASKS -->
+<div id="tasks-section" class="section">
+
+<!-- SEARCH -->
+<div class="card">
+
+<h2>🔍 Search Tasks</h2>
+
+<form method="GET" action="/dashboard">
+
+<input
+type="text"
+name="subject"
+placeholder="Search Subject"
+>
+
+<select name="priority">
+
+<option value="">All Priority</option>
+<option value="High">High</option>
+<option value="Medium">Medium</option>
+<option value="Low">Low</option>
+
+</select>
+
+<select name="status">
+
+<option value="">All Status</option>
+<option value="pending">Pending</option>
+<option value="completed">Completed</option>
+
+</select>
+
+<button type="submit">
+Search
+</button>
+
+</form>
+
+</div>
+
+<!-- ADD TASK -->
+<div class="card">
+
+<h2>Add Task</h2>
+
+<form action="/add_task" method="POST">
+
+<input
+name="task"
+placeholder="Task"
+required
+>
+
+<input
+name="subject"
+placeholder="Subject"
+required
+>
+
+<select name="priority">
+
+<option>High</option>
+<option>Medium</option>
+<option>Low</option>
+
+</select>
+
+<input
+type="date"
+name="due_date"
+required
+>
+
+<button type="submit">
+Add
+</button>
+
+</form>
+
+</div>
+
+<!-- TASK LIST -->
+<div class="card">
+
+<h2>Your Tasks</h2>
+
+{% for task in tasks %}
+
+<div class="task">
+
+<h3>{{ task["task"] }}</h3>
+
+<p>📚 {{ task["subject"] }}</p>
+
+<p>📅 {{ task["due_date"] }}</p>
+
+<p>⚡ {{ task["priority"] }}</p>
+
+{% if task["completed"] == 0 %}
+
+<a href="/complete_task/{{ task['id'] }}">
+Complete
+</a>
+
+{% else %}
+
+<p>✅ Done</p>
+
+{% endif %}
+
+<br><br>
+
+<a href="/delete_task/{{ task['id'] }}">
+Delete
+</a>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+</div>
+
+<!-- CALENDAR -->
+<div id="calendar-section" class="section">
+
+<div class="card">
+
+<h2>📅 Calendar</h2>
+
+<iframe
+src="https://calendar.google.com/calendar/embed?src=en.indian%23holiday%40group.v.calendar.google.com"
+width="100%"
+height="600"
+style="border:none;border-radius:20px;">
+</iframe>
+
+</div>
+
+</div>
+
+<!-- POMODORO -->
+<div id="pomodoro-section" class="section">
+
+<div class="card">
+
+<h2>🍅 Pomodoro</h2>
+
+<div id="timer">25:00</div>
+
+<div class="timer-buttons">
+
+<button onclick="startTimer()">
+Start
+</button>
+
+<button onclick="pauseTimer()">
+Pause
+</button>
+
+<button onclick="resetTimer()">
+Reset
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- NOTIFICATIONS -->
+<div id="notification-section" class="section">
+
+<div class="card">
+
+<h2>🔔 Notifications</h2>
+
+<div id="notificationList">
+
+<p style="color:gray;">
+No notifications yet
+</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- TASK JSON -->
+<script
+id="task-data"
+type="application/json"
+>
+{{ tasks | tojson | safe }}
+</script>
+
+<script>
+
+/* TASK DATA */
+let tasks = [];
+
+try{
+
+    tasks = JSON.parse(
+        document.getElementById(
+            "task-data"
+        ).textContent
+    );
+
+}catch(e){
+
+    console.log(e);
+
+}
+
+/* SECTION SWITCH */
+function showSection(id){
+
+    document
+    .querySelectorAll(".section")
+    .forEach(s => s.classList.remove("active"));
+
+    document
+    .getElementById(id)
+    .classList.add("active");
+
+}
+
+/* XP BAR */
+document.addEventListener(
+    "DOMContentLoaded",
+    function(){
+
+        const xp =
+        Number(
+            "{{ xp | default(0) }}"
+        );
+
+        const percent =
+        (xp % 150) * 100 / 150;
+
+        document
+        .getElementById("xpFill")
+        .style.width =
+        percent + "%";
+
+    }
+);
+
+/* CHART */
+document.addEventListener(
+    "DOMContentLoaded",
+    function(){
+
+        const ctx =
+        document.getElementById(
+            "chart"
+        );
+
+        new Chart(ctx,{
+
+            type:"doughnut",
+
+            data:{
+                labels:[
+                    "Completed",
+                    "Pending"
+                ],
+
+                datasets:[{
+
+                    data:[
+                        Number(
+                            "{{ completed_tasks }}"
+                        ),
+
+                        Number(
+                            "{{ pending_tasks }}"
+                        )
+                    ],
+
+                    backgroundColor:[
+                        "#22c55e",
+                        "#ef4444"
+                    ]
+
+                }]
+            }
+        });
+
+    }
+);
+
+/* POMODORO */
+let time = 1500;
+let timer;
+let running = false;
+
+function updateTimer(){
+
+    let m =
+    Math.floor(time/60);
+
+    let s =
+    time%60;
+
+    document
+    .getElementById("timer")
+    .innerHTML =
+
+    m + ":" +
+    (s<10?"0":"") + s;
+
+}
+
+function startTimer(){
+
+    if(running) return;
+
+    running = true;
+
+    timer = setInterval(()=>{
+
+        if(time>0){
+
+            time--;
+
+            updateTimer();
+
+        }else{
+
+            clearInterval(timer);
+
+            alert("Pomodoro Complete!");
+
+        }
+
+    },1000);
+
+}
+
+function pauseTimer(){
+
+    clearInterval(timer);
+
+    running = false;
+
+}
+
+function resetTimer(){
+
+    clearInterval(timer);
+
+    running = false;
+
+    time = 1500;
+
+    updateTimer();
+
+}
+
+updateTimer();
+
+/* NOTIFICATIONS */
+function addNotification(msg){
+
+    const box =
+    document.getElementById(
+        "notificationList"
+    );
+
+    let div =
+    document.createElement("div");
+
+    div.style.background =
+    "#334155";
+
+    div.style.padding =
+    "10px";
+
+    div.style.marginTop =
+    "10px";
+
+    div.style.borderRadius =
+    "10px";
+
+    div.innerHTML =
+    "🔔 " + msg;
+
+    box.appendChild(div);
+
+}
+
+function checkDueTasks(){
+
+    const today =
+    new Date()
+    .toISOString()
+    .split("T")[0];
+
+    tasks.forEach(task=>{
+
+        if(
+            task.completed === 0 &&
+            task.due_date === today
+        ){
+
+            addNotification(
+                task.task +
+                " is due today!"
+            );
+
+            if(
+                "Notification" in window
+            ){
+
+                if(
+                    Notification.permission
+                    === "granted"
+                ){
+
+                    new Notification(
+                        "📅 Task Due Today",
+                        {
+                            body:
+                            task.task +
+                            " is due today!"
+                        }
+                    );
+
+                }
+
+            }
+
+        }
+
+    });
+
+}
+
+/* REQUEST PERMISSION */
+if("Notification" in window){
+
+    Notification
+    .requestPermission();
+
+}
+
+/* RUN NOTIFICATION CHECK */
+window.onload = function(){
+
+    setTimeout(
+        checkDueTasks,
+        2000
+    );
+
+};
+
+</script>
+
+</body>
+</html>
