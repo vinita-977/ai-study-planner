@@ -1,16 +1,27 @@
 from flask import Flask, render_template, request, redirect, session
 import sqlite3
 from datetime import date
+import os
 
 app = Flask(__name__)
 app.secret_key = "secret_key"
 
+
 # =========================
-# DATABASE SETUP
+# DATABASE PATH (IMPORTANT FOR RENDER)
+# =========================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "database.db")
+
+
+# =========================
+# INIT DATABASE
 # =========================
 
 def init_db():
-    conn = sqlite3.connect("database.db")
+
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -40,7 +51,18 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 init_db()
+
+
+# =========================
+# HOME FIX (RENDER SAFE)
+# =========================
+
+@app.route("/")
+def home():
+    return redirect("/login")
+
 
 # =========================
 # SIGNUP
@@ -55,7 +77,7 @@ def signup():
         email = request.form["email"]
         password = request.form["password"]
 
-        conn = sqlite3.connect("database.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         user = cursor.execute(
@@ -64,6 +86,7 @@ def signup():
         ).fetchone()
 
         if user:
+            conn.close()
             return "User already exists"
 
         cursor.execute("""
@@ -78,6 +101,7 @@ def signup():
 
     return render_template("signup.html")
 
+
 # =========================
 # LOGIN
 # =========================
@@ -90,7 +114,7 @@ def login():
         email = request.form["email"]
         password = request.form["password"]
 
-        conn = sqlite3.connect("database.db")
+        conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -112,8 +136,9 @@ def login():
 
     return render_template("login.html")
 
+
 # =========================
-# DASHBOARD (WITH SEARCH + AI)
+# DASHBOARD (NO FEATURE CHANGE)
 # =========================
 
 @app.route("/dashboard")
@@ -122,13 +147,9 @@ def dashboard():
     if "user_id" not in session:
         return redirect("/login")
 
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
-    # =========================
-    # SEARCH FILTERS
-    # =========================
 
     subject = request.args.get("subject", "")
     priority = request.args.get("priority", "")
@@ -153,17 +174,9 @@ def dashboard():
     tasks = cursor.execute(query, params).fetchall()
     tasks = [dict(t) for t in tasks]
 
-    # =========================
-    # STATS
-    # =========================
-
     total_tasks = len(tasks)
     completed_tasks = len([t for t in tasks if t["completed"] == 1])
     pending_tasks = len([t for t in tasks if t["completed"] == 0])
-
-    # =========================
-    # USER DATA
-    # =========================
 
     user = cursor.execute(
         "SELECT * FROM users WHERE id=?",
@@ -172,11 +185,9 @@ def dashboard():
 
     xp = user["xp"]
     streak = user["streak"]
-    level = xp // 150
 
-    # =========================
-    # AI RECOMMENDATIONS (SIMPLE BUT WORKING)
-    # =========================
+    # FIXED LEVEL LOGIC (same idea, more correct)
+    level = (xp // 150) + 1
 
     ai_recommendations = []
 
@@ -190,7 +201,7 @@ def dashboard():
         ai_recommendations.append("High workload! Use Pomodoro technique.")
 
     if completed_tasks < total_tasks:
-        ai_recommendations.append("Try completing 2–3 tasks today for better streak.")
+        ai_recommendations.append("Try completing 2–3 tasks today for streak boost.")
 
     conn.close()
 
@@ -210,6 +221,7 @@ def dashboard():
         ai_recommendations=ai_recommendations
     )
 
+
 # =========================
 # ADD TASK
 # =========================
@@ -225,7 +237,7 @@ def add_task():
     priority = request.form["priority"]
     due_date = request.form["due_date"]
 
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -238,14 +250,18 @@ def add_task():
 
     return redirect("/dashboard")
 
+
 # =========================
-# COMPLETE TASK + XP
+# COMPLETE TASK (XP SYSTEM)
 # =========================
 
 @app.route("/complete_task/<int:task_id>")
 def complete_task(task_id):
 
-    conn = sqlite3.connect("database.db")
+    if "user_id" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -261,6 +277,7 @@ def complete_task(task_id):
 
     return redirect("/dashboard")
 
+
 # =========================
 # DELETE TASK
 # =========================
@@ -268,7 +285,7 @@ def complete_task(task_id):
 @app.route("/delete_task/<int:task_id>")
 def delete_task(task_id):
 
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
@@ -277,6 +294,7 @@ def delete_task(task_id):
     conn.close()
 
     return redirect("/dashboard")
+
 
 # =========================
 # LOGOUT
@@ -287,10 +305,10 @@ def logout():
     session.clear()
     return redirect("/login")
 
+
 # =========================
-# RUN APP
+# RENDER ENTRY POINT FIX
 # =========================
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    
+    app.run(host="0.0.0.0", port=5000)
