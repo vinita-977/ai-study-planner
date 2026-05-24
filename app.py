@@ -8,7 +8,7 @@ app.secret_key = "secret_key"
 
 
 # =========================
-# DATABASE PATH (IMPORTANT FOR RENDER)
+# DATABASE PATH (RENDER SAFE)
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -56,7 +56,7 @@ init_db()
 
 
 # =========================
-# HOME FIX (RENDER SAFE)
+# HOME ROUTE SAFETY
 # =========================
 
 @app.route("/")
@@ -138,13 +138,21 @@ def login():
 
 
 # =========================
-# DASHBOARD (NO FEATURE CHANGE)
+# LOGIN CHECK HELPER
+# =========================
+
+def login_required():
+    return "user_id" not in session
+
+
+# =========================
+# DASHBOARD
 # =========================
 
 @app.route("/dashboard")
 def dashboard():
 
-    if "user_id" not in session:
+    if login_required():
         return redirect("/login")
 
     conn = sqlite3.connect(DB_PATH)
@@ -186,7 +194,6 @@ def dashboard():
     xp = user["xp"]
     streak = user["streak"]
 
-    # FIXED LEVEL LOGIC (same idea, more correct)
     level = (xp // 150) + 1
 
     ai_recommendations = []
@@ -194,14 +201,14 @@ def dashboard():
     if pending_tasks == 0:
         ai_recommendations.append("Great job! All tasks completed 🎉")
     elif pending_tasks <= 2:
-        ai_recommendations.append("Low workload. Revise completed topics.")
+        ai_recommendations.append("Low workload. Revise topics.")
     elif pending_tasks <= 5:
-        ai_recommendations.append("Moderate workload. Focus on priorities.")
+        ai_recommendations.append("Moderate workload. Focus priorities.")
     else:
         ai_recommendations.append("High workload! Use Pomodoro technique.")
 
     if completed_tasks < total_tasks:
-        ai_recommendations.append("Try completing 2–3 tasks today for streak boost.")
+        ai_recommendations.append("Try completing 2–3 tasks today.")
 
     conn.close()
 
@@ -229,7 +236,7 @@ def dashboard():
 @app.route("/add_task", methods=["POST"])
 def add_task():
 
-    if "user_id" not in session:
+    if login_required():
         return redirect("/login")
 
     task = request.form["task"]
@@ -252,13 +259,13 @@ def add_task():
 
 
 # =========================
-# COMPLETE TASK (XP SYSTEM)
+# COMPLETE TASK
 # =========================
 
 @app.route("/complete_task/<int:task_id>")
 def complete_task(task_id):
 
-    if "user_id" not in session:
+    if login_required():
         return redirect("/login")
 
     conn = sqlite3.connect(DB_PATH)
@@ -285,6 +292,9 @@ def complete_task(task_id):
 @app.route("/delete_task/<int:task_id>")
 def delete_task(task_id):
 
+    if login_required():
+        return redirect("/login")
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -307,8 +317,9 @@ def logout():
 
 
 # =========================
-# RENDER ENTRY POINT FIX
+# RUN APP (RENDER SAFE)
 # =========================
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+    
